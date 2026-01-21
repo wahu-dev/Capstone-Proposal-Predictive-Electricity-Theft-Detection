@@ -7,6 +7,7 @@ scipy>=1.9
 
 # Machine learning
 scikit-learn>=1.2
+imbalanced-learn>=0.12
 xgboost>=1.7
 shap>=0.43
 joblib>=1.3
