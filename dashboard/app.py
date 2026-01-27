@@ -141,7 +141,7 @@ with tab2:
     )
 
     # Inspection simulator inputs
-    st.markdown("### 🛠️ Inspection Strategy Simulator")
+    st.markdown("### Inspection Strategy Simulator")
     inspection_capacity = st.slider(
         "Number of Inspections Available", min_value=10, max_value=500, value=100, step=10
     )
@@ -211,9 +211,7 @@ with tab3:
     shap.plots.waterfall(explanation, show=False)
     st.pyplot(fig, bbox_inches="tight")
 
-# ===============================
 # Tab 4: Cost–Benefit Policy Simulator
-# ===============================
 @st.cache_data
 def compute_impact_curve(
     y_true,
@@ -299,82 +297,64 @@ with tab4:
     annual_bill = avg_monthly_bill * 12
 
     # -------------------------
-    # Predictions
+    # Simulated Inspections Summary
     # -------------------------
-    if "is_theft" not in dashboard_df.columns:
-        st.error("⚠️ Column `is_theft` not found — policy simulator requires labeled data.")
-        st.stop()
-
-    y_true = dashboard_df["is_theft"].values
-    y_proba = model.predict_proba(X)[:, 1]
-
-    impact_df = compute_impact_curve(
-        y_true=y_true,
-        y_proba=y_proba,
-        n_customers=n_customers,
-        theft_rate=theft_rate,
-        annual_bill=annual_bill,
-        inspection_cost=inspection_cost,
-        max_inspections=inspection_cap
-    )
+    n_theft_customers = n_customers * theft_rate
+    inspected_customers = min(inspection_cap, int(n_theft_customers))
+    gross_recovery = inspected_customers * annual_bill
+    total_cost = inspected_customers * inspection_cost
+    net_impact = gross_recovery - total_cost
+    roi = net_impact / total_cost if total_cost > 0 else 0
 
     # -------------------------
-    # Optimal Policy Selection
+    # Display Metrics
     # -------------------------
-    best = impact_df.loc[impact_df["net_B"].idxmax()]
-
-    k1, k2, k3, k4 = st.columns(4)
-
-    k1.metric("Optimal Threshold", f"{best.threshold:.3f}")
-    k2.metric("Net Impact (KES B)", f"{best.net_B:.2f}")
-    k3.metric("ROI (x)", f"{best.roi:.1f}")
-    k4.metric("Customers Inspected", f"{int(best.inspected):,}")
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("Customers Inspected", f"{inspected_customers:,}")
+    k2.metric("Gross Recovery(B)", f"{gross_recovery/1e9:.2f}")
+    k3.metric("Inspection Cost(M)", f"{total_cost/1e6:.1f}")  # <- Added total cost
+    k4.metric("Net Impact (KES B)", f"{net_impact/1e9:.2f}")
+    k5.metric("ROI (x)", f"{roi:.1f}")
 
     # -------------------------
-    # Plot Financial Curves
+    # ROI Formula
     # -------------------------
-    fig = px.line(
-        impact_df,
-        x="threshold",
-        y=["net_B", "roi"],
-        title="Financial Impact vs Probability Threshold",
-        labels={
-            "value": "Metric Value",
-            "threshold": "Probability Threshold",
-            "variable": "Metric"
-        }
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown(
+        """
+**ROI Formula (Display):**  
 
-    # -------------------------
-    # Detailed Results Table
-    # -------------------------
-    with st.expander("📊 View Full Threshold Simulation Table"):
-        st.dataframe(
-            impact_df.sort_values("net_B", ascending=False),
-            height=350
-        )
+$$
+ROI = \\frac{\\text{Net Impact}}{\\text{Total Cost}} = \\frac{\\text{Gross Recovery} - \\text{Total Cost}}{\\text{Total Cost}}
+$$
+
+Where:  
+- **Gross Recovery** = Inspected Customers × Annual Bill  
+- **Total Cost** = Inspected Customers × Inspection Cost  
+- **Net Impact** = Gross Recovery − Total Cost
+""",
+    unsafe_allow_html=True
+)
 
     # -------------------------
     # Executive Summary Text
     # -------------------------
     st.success(
-        f"""
-### 📌 Executive Summary
+        f"""### 📌 Executive Summary
 
-At an optimal threshold of **{best.threshold:.3f}**:
+- **Estimated Inspections:** {inspected_customers:,} per year
+- **Gross Recovery:** KES {gross_recovery/1e9:.2f}B
+- **Inspection Cost:** KES {total_cost/1e6:.1f}M
+- **Net Impact:** KES {net_impact/1e9:.2f}B
+- **ROI:** {roi:.1f}×
 
-- **{int(best.inspected):,} inspections/year**
-- **KES {best.gross_B:.2f}B gross recovery**
-- **KES {best.cost_M:.1f}M inspection cost**
-- **KES {best.net_B:.2f}B net financial impact**
-- **ROI = {best.roi:.1f}×**
-
-This represents the most profitable operational policy under current assumptions.
-"""
+This provides a simplified, **policy simulator**."""
     )
 
-
+# -------------------------
 # Footer
-st.markdown("---")  # Horizontal line
-st.caption("Interactive dashboard for electricity theft detection. All metrics are read-only and derived from precomputed models and SHAP explainability.")
+# -------------------------
+st.markdown("---")
+st.caption(
+    "Interactive dashboard for electricity theft detection. All metrics are read-only "
+    "and derived from precomputed models and SHAP explainability."
+)
